@@ -1,0 +1,125 @@
+manifest.json:
+
+{
+    "manifest_version": 3,
+    "name": "Gmail Spam Extension",
+    "version": "1.0",
+    "description": "Classify Gmail messages as spam or ham.",
+    "permissions": ["identity"],
+    "host_permissions": ["https://www.googleapis.com/"],
+    "background": {
+      "service_worker": "background.js"
+    },
+    "action": {
+      "default_popup": "popup.html",
+      "default_icon": "icon.png"
+    },
+    "oauth2": {
+      "client_id": "840247960250-bvvfbr2s14lktmeorbc2oflb29ed38oe.apps.googleusercontent.com",
+      "scopes": ["https://www.googleapis.com/auth/gmail.readonly"]
+    }
+  }
+
+background.js:
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.action === "authenticate") {
+      chrome.identity.getAuthToken({ interactive: true }, (token) => {
+        if (chrome.runtime.lastError) {
+          console.error("Authentication failed: ", chrome.runtime.lastError.message);
+          sendResponse({ success: false, error: chrome.runtime.lastError.message });
+        } else if (typeof token === "undefined" || token === null) {
+          console.error("Token retrieval failed. Token is undefined.");
+          sendResponse({ success: false, error: "Token is undefined." });
+        } else {
+          console.log("Authenticated! Token: ", token);
+          
+          // Make request to Gmail API
+          fetch('https://www.googleapis.com/gmail/v1/users/me/messages', {
+            method: 'GET',
+            headers: new Headers({
+              'Authorization': 'Bearer ' + token
+            })
+          })
+          .then(response => response.json())
+          .then(data => {
+            console.log("Gmail API Data:", data);
+            // Send response after getting Gmail data
+            sendResponse({ success: true, token: token, data: data });
+          })
+          .catch(error => {
+            console.error("Error calling Gmail API:", error);
+            sendResponse({ success: false, error: error.message });
+          });
+        }
+      });
+      return true; // To ensure asynchronous response
+    }
+  });
+
+popup.js:
+
+document.getElementById("classify").addEventListener("click", () => {
+    chrome.runtime.sendMessage({ action: "authenticate" }, (response) => {
+      if (chrome.runtime.lastError) {
+        document.getElementById("result").innerText = "Error: " + chrome.runtime.lastError.message;
+      } else if (response && response.success) {
+        document.getElementById("result").innerText = "Authentication successful! Token: " + response.token;
+        
+        // Display Gmail data (emails)
+        if (response.data) {
+          let emailList = '';
+          response.data.messages.forEach(message => {
+            emailList += `<p>Email ID: ${message.id}</p>`;
+          });
+          document.getElementById("result").innerHTML += `<div>${emailList}</div>`;
+        }
+      } else {
+        document.getElementById("result").innerText = "Failed to authenticate: " + response.error;
+      }
+    });
+  });
+
+popup.html:
+
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Gmail Spam Filter</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        padding: 10px;
+        width: 300px;
+      }
+      h1 {
+        font-size: 1.5rem;
+        text-align: center;
+      }
+      #classify {
+        background-color: #4CAF50;
+        color: white;
+        border: none;
+        padding: 10px 15px;
+        text-align: center;
+        font-size: 1rem;
+        cursor: pointer;
+        border-radius: 5px;
+        width: 100%;
+        margin-top: 10px;
+      }
+      #result {
+        margin-top: 15px;
+        font-size: 0.9rem;
+        color: #555;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Spam Filter</h1>
+    <button id="classify">Classify Emails</button>
+    <div id="result"></div>
+    <script src="popup.js"></script>
+  </body>
+</html>
+
