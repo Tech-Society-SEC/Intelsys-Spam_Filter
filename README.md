@@ -1,5 +1,5 @@
 # TITLE:
-(provide the title of your own Model)
+(provide the title of your own Model) fusk
 
 # BRIEF EXPLANATION ABOUT THE WORKING MODEL:
 (include a very short explanation of your won on how your model works)
